@@ -23,6 +23,7 @@ RUN apt-get update -q && \
         procps \
         subversion \
         wget \
+        rsync \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
