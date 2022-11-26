@@ -56,12 +56,18 @@ RUN set -x && \
     mkdir -p /home/coder && \
     sh miniconda.sh -b -p /home/coder/conda && \
     rm miniconda.sh shasum && \
-    # ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    # echo ". /home/coder/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "/home/coder/conda/bin/conda init" && \
+    echo ". /home/coder/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc && \
     find /home/coder/conda/ -follow -type f -name '*.a' -delete && \
     find /home/coder/conda/ -follow -type f -name '*.js.map' -delete && \
     /home/coder/conda/bin/conda clean -afy
+
+USER root
+
+RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+
+USER 1000
+ENV USER=coder
+WORKDIR /home/coder
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:8080", "."]
