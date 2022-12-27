@@ -26,6 +26,14 @@ RUN apt-get update -q && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# install kubectl v1.23.5
+RUN curl -LO "https://dl.k8s.io/release/v1.23.5/bin/linux/amd64/kubectl" && \
+    curl -LO "https://dl.k8s.io/v1.23.5/bin/linux/amd64/kubectl.sha256" && \
+    echo "$(<kubectl.sha256) kubectl" | sha256sum --check && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl && \
+    rm kubectl.sha256
+
 USER 1000
 ENV USER=coder
 WORKDIR /home/coder
