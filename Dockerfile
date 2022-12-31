@@ -1,4 +1,4 @@
-FROM codercom/code-server:4.8.3-bullseye
+FROM codercom/code-server:4.9.1-bullseye
 # base image credit: https://github.com/coder/code-server/blob/main/ci/release-image/Dockerfile
 
 USER root
