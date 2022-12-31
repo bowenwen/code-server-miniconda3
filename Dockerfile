@@ -84,15 +84,10 @@ RUN npm install node-2fa \
     && npm install qrcode
 # RUN node gen.js
 RUN echo 'make sure ~/.config/code-server/config.yaml contains password and tfa key'
-RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk
-RUN cat >>/usr/lib/code-server/out/node/cli.js <<'KBEOF'
-
-tfa: {
-      type: "string",
-      description: "2fa secret key"
-}
-KBEOF
-COPY /rootfs/node_routes/login.js /usr/lib/code-server/out/node/routes/login.js
+RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk \
+    && /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk
+COPY /rootfs/node/cli.js /usr/lib/code-server/out/node/cli.js
+COPY /rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
 
 USER 1000
 ENV USER=coder
