@@ -75,6 +75,25 @@ USER root
 
 RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
+# set up two factor auth
+# guide: https://github.com/Ikysu/guide-code-server-2fa
+RUN apt-get update -q && apt-get install -y npm nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install node-2fa \
+    && npm install qrcode
+# RUN node gen.js
+RUN echo 'make sure ~/.config/code-server/config.yaml contains password and tfa key'
+RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk
+RUN cat >>/usr/lib/code-server/out/node/cli.js <<'KBEOF'
+
+tfa: {
+      type: "string",
+      description: "2fa secret key"
+}
+KBEOF
+COPY /rootfs/node_routes/login.js /usr/lib/code-server/out/node/routes/login.js
+
 USER 1000
 ENV USER=coder
 WORKDIR /home/coder
