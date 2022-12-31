@@ -80,8 +80,8 @@ RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 RUN apt-get update -q && apt-get install -y npm nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-RUN npm install node-2fa \
-    && npm install qrcode
+RUN npm install --prefix /usr/lib/code-server node-2fa \
+    && npm install --prefix /usr/lib/code-server qrcode
 # RUN node gen.js
 RUN echo 'make sure ~/.config/code-server/config.yaml contains password and tfa key'
 RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk \
