@@ -85,7 +85,7 @@ RUN npm install node-2fa \
 # RUN node gen.js
 RUN echo 'make sure ~/.config/code-server/config.yaml contains password and tfa key'
 RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk \
-    && /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk
+    && cp /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk
 COPY /rootfs/node/cli.js /usr/lib/code-server/out/node/cli.js
 COPY /rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
 
