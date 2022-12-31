@@ -85,9 +85,11 @@ RUN npm install --prefix /usr/lib/code-server node-2fa \
 # RUN node gen.js
 RUN echo 'make sure ~/.config/code-server/config.yaml contains password and tfa key'
 RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js_bk \
-    && cp /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk
+    && cp /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk \
+    && cp /usr/lib/code-server/src/browser/pages/login.html /usr/lib/code-server/src/browser/pages/login.html_bk
 COPY /rootfs/node/cli.js /usr/lib/code-server/out/node/cli.js
 COPY /rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
+COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 # for dev only
 # cp /home/coder/projects/code-server-miniconda3/rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
 

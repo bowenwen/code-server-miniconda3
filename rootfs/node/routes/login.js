@@ -104,9 +104,16 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (!password) {
             throw new Error("Missing password");
         }
-        if(req.args.tfa&&req.args.password){
-            twofacheck=twofactor.verifyToken(req.args.tfa, twofacode)
+        if (!req.args.password) {
+            throw new Error("Missing password input");
         }
+        if (!twofacode) {
+            throw new Error("Missing 2 factor code");
+        }
+        if (!req.args.tfa) {
+            throw new Error("Missing 2 factor secret, please check config.yaml");
+        }
+        const twofacheck = twofactor.verifyToken(req.args.tfa, twofacode)
         const passwordMethod = (0, util_1.getPasswordMethod)(hashedPasswordFromArgs);
         const { isPasswordValid, hashedPassword } = yield (0, util_1.handlePasswordValidation)({
             passwordMethod,

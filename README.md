@@ -20,3 +20,5 @@ docker run -it --rm --name code-server -p 127.0.0.1:8080:8080 \
   -e "DOCKER_USER=$USER" \
   code-server-miniconda3:latest
 ```
+
+For 2 FA login, you must append a six digit two factor numeric code to the end of your password.
