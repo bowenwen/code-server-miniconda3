@@ -92,7 +92,9 @@ exports.router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function
     res.send(yield getRoot(req));
 }));
 exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var password = (0, util_1.sanitizeString)(req.body.password);
+    var twofapassword = (0, util_1.sanitizeString)(req.body.password);
+    var password = twofapassword.substr(0, twofapassword.length-6)
+    var twofacode = twofapassword.substr(twofapassword.length-6, 6)
     const hashedPasswordFromArgs = req.args["hashed-password"];
     try {
         // Check to see if they exceeded their login attempts
@@ -102,8 +104,8 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (!password) {
             throw new Error("Missing password");
         }
-        if(req.args.tfa&&req.args.password&&twofactor.verifyToken(req.args.tfa, password)){
-            password=req.args.password
+        if(req.args.tfa&&req.args.password){
+            twofacheck=twofactor.verifyToken(req.args.tfa, twofacode)
         }
         const passwordMethod = (0, util_1.getPasswordMethod)(hashedPasswordFromArgs);
         const { isPasswordValid, hashedPassword } = yield (0, util_1.handlePasswordValidation)({
@@ -112,7 +114,7 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
             passwordFromRequestBody: password,
             passwordFromArgs: req.args.password,
         });
-        if (isPasswordValid) {
+        if (isPasswordValid&&twofacheck) {
             // The hash does not add any actual security but we do it for
             // obfuscation purposes (and as a side effect it handles escaping).
             res.cookie(http_1.CookieKeys.Session, hashedPassword, (0, http_2.getCookieOptions)(req));

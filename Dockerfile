@@ -88,6 +88,8 @@ RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js
     && cp /usr/lib/code-server/out/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js_bk
 COPY /rootfs/node/cli.js /usr/lib/code-server/out/node/cli.js
 COPY /rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
+# for dev only
+# cp /home/coder/projects/code-server-miniconda3/rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
 
 USER 1000
 ENV USER=coder
