@@ -1,4 +1,4 @@
-FROM codercom/code-server:4.9.1-bullseye
+FROM codercom/code-server:4.10.0-bullseye
 # base image credit: https://github.com/coder/code-server/blob/main/ci/release-image/Dockerfile
 
 USER root
@@ -90,6 +90,18 @@ RUN cp /usr/lib/code-server/out/node/cli.js /usr/lib/code-server/out/node/cli.js
 COPY /rootfs/node/cli.js /usr/lib/code-server/out/node/cli.js
 COPY /rootfs/node/routes/login.js /usr/lib/code-server/out/node/routes/login.js
 COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
+
+# NOTE: when bumping version, comment out previous block for two factor auth,
+# and build a basic version of the image (name it with dev tag),
+# docker build -t code-server-miniconda3:4.10.0-20230220-dev1 .
+# then copy the relevant files out of the image and then resolve conflict.
+# uncomment previous block after conflicts are all resolved.
+# id=$(docker create code-server-miniconda3:4.10.0-20230220-dev1)
+# [docker cp $id:path - > local-tar-file]
+# docker cp $id:/usr/lib/code-server/out/node/cli.js -> rootfs/node/cli.js
+# docker cp $id:/usr/lib/code-server/out/node/routes/login.js -> rootfs/node/routes/login.js
+# docker cp $id:/usr/lib/code-server/src/browser/pages/login.html -> rootfs/login.html
+# docker rm -v $id
 
 USER 1000
 ENV USER=coder

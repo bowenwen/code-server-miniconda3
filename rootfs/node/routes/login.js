@@ -31,6 +31,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = exports.RateLimiter = void 0;
 const express_1 = require("express");
@@ -42,14 +45,15 @@ const http_1 = require("../../common/http");
 const constants_1 = require("../constants");
 const http_2 = require("../http");
 const util_1 = require("../util");
+const i18n_1 = __importDefault(require("../i18n"));
 // Set up two factor
 const twofactor = require("node-2fa");
 // RateLimiter wraps around the limiter library for logins.
 // It allows 2 logins every minute plus 12 logins every hour.
 class RateLimiter {
     constructor() {
-        this.minuteLimiter = new limiter_1.RateLimiter(2, "minute");
-        this.hourLimiter = new limiter_1.RateLimiter(12, "hour");
+        this.minuteLimiter = new limiter_1.RateLimiter({ tokensPerInterval: 2, interval: "minute" });
+        this.hourLimiter = new limiter_1.RateLimiter({ tokensPerInterval: 12, interval: "hour" });
     }
     canTry() {
         // Note: we must check using >= 1 because technically when there are no tokens left
@@ -64,19 +68,24 @@ class RateLimiter {
 exports.RateLimiter = RateLimiter;
 const getRoot = (req, error) => __awaiter(void 0, void 0, void 0, function* () {
     const content = yield fs_1.promises.readFile(path.join(constants_1.rootPath, "src/browser/pages/login.html"), "utf8");
+    const locale = req.args["locale"] || "en";
+    i18n_1.default.changeLanguage(locale);
     const appName = req.args["app-name"] || "code-server";
-    const welcomeText = req.args["welcome-text"] || `Welcome to ${appName}`;
-    let passwordMsg = `Check the config file at ${(0, util_1.humanPath)(os.homedir(), req.args.config)} for the password.`;
+    const welcomeText = req.args["welcome-text"] || i18n_1.default.t("WELCOME", { app: appName });
+    let passwordMsg = i18n_1.default.t("LOGIN_PASSWORD", { configFile: (0, util_1.humanPath)(os.homedir(), req.args.config) });
     if (req.args.usingEnvPassword) {
-        passwordMsg = "Password was set from $PASSWORD.";
+        passwordMsg = i18n_1.default.t("LOGIN_USING_ENV_PASSWORD");
     }
     else if (req.args.usingEnvHashedPassword) {
-        passwordMsg = "Password was set from $HASHED_PASSWORD.";
+        passwordMsg = i18n_1.default.t("LOGIN_USING_HASHED_PASSWORD");
     }
     return (0, http_2.replaceTemplates)(req, content
-        .replace(/{{APP_NAME}}/g, appName)
+        .replace(/{{I18N_LOGIN_TITLE}}/g, i18n_1.default.t("LOGIN_TITLE", { app: appName }))
         .replace(/{{WELCOME_TEXT}}/g, welcomeText)
         .replace(/{{PASSWORD_MSG}}/g, passwordMsg)
+        .replace(/{{I18N_LOGIN_BELOW}}/g, i18n_1.default.t("LOGIN_BELOW"))
+        .replace(/{{I18N_PASSWORD_PLACEHOLDER}}/g, i18n_1.default.t("PASSWORD_PLACEHOLDER"))
+        .replace(/{{I18N_SUBMIT}}/g, i18n_1.default.t("SUBMIT"))
         .replace(/{{ERROR}}/, error ? `<div class="error">${(0, util_1.escapeHtml)(error.message)}</div>` : ""));
 });
 const limiter = new RateLimiter();
@@ -92,28 +101,28 @@ exports.router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function
     res.send(yield getRoot(req));
 }));
 exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var twofapassword = (0, util_1.sanitizeString)(req.body.password);
-    var password = twofapassword.substr(0, twofapassword.length-6)
-    var twofacode = twofapassword.substr(twofapassword.length-6, 6)
+    var tfaPassword = (0, util_1.sanitizeString)(req.body.password);
+    var password = tfaPassword.substr(0, tfaPassword.length-6)
+    var tfaCode = tfaPassword.substr(tfaPassword.length-6, 6)
     const hashedPasswordFromArgs = req.args["hashed-password"];
     try {
         // Check to see if they exceeded their login attempts
         if (!limiter.canTry()) {
-            throw new Error("Login rate limited!");
+            throw new Error(i18n_1.default.t("LOGIN_RATE_LIMIT"));
         }
         if (!password) {
-            throw new Error("Missing password");
+            throw new Error(i18n_1.default.t("MISS_PASSWORD"));
         }
         if (!req.args.password) {
-            throw new Error("Missing password input");
+            throw new Error("Missing password in config, please check config.yaml.");
         }
-        if (!twofacode) {
+        if (!tfaCode) {
             throw new Error("Missing 2 factor code");
         }
         if (!req.args.tfa) {
-            throw new Error("Missing 2 factor secret, please check config.yaml");
+            throw new Error("Missing 2 factor secret, please check config.yaml.");
         }
-        const twofacheck = twofactor.verifyToken(req.args.tfa, twofacode)
+        const twofacheck = twofactor.verifyToken(req.args.tfa, tfaCode);
         const passwordMethod = (0, util_1.getPasswordMethod)(hashedPasswordFromArgs);
         const { isPasswordValid, hashedPassword } = yield (0, util_1.handlePasswordValidation)({
             passwordMethod,
@@ -137,7 +146,7 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
             userAgent: req.headers["user-agent"],
             timestamp: Math.floor(new Date().getTime() / 1000),
         }));
-        throw new Error("Incorrect password");
+        throw new Error(i18n_1.default.t("INCORRECT_PASSWORD"));
     }
     catch (error) {
         const renderedHtml = yield getRoot(req, error);
