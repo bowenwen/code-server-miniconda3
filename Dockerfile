@@ -1,29 +1,55 @@
-FROM codercom/code-server:4.10.0-bullseye
-# base image credit: https://github.com/coder/code-server/blob/main/ci/release-image/Dockerfile
+FROM ubuntu:jammy-20230301
+
+LABEL authors="Bo Wen"
+
+# credits:
+# - miniconda: https://github.com/ContinuumIO/docker-images/blob/master/miniconda3/debian/Dockerfile
+# - code server: https://github.com/coder/code-server/blob/main/ci/release-image/Dockerfile
+# - nvidia: https://hub.docker.com/r/nvidia/cuda/tags?page=1&name=22.04
 
 USER root
+WORKDIR /tmp
 
-# use example from miniconda but install as user instead
-# miniconda credit: https://github.com/ContinuumIO/docker-images/blob/master/miniconda3/debian/Dockerfile
-
+# set language and locale
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+# packages required by code server
+RUN apt-get update \
+    && apt-get install -y \
+    curl \
+    dumb-init \
+    zsh \
+    htop \
+    locales \
+    man \
+    nano \
+    git \
+    git-lfs \
+    procps \
+    openssh-client \
+    sudo \
+    vim.tiny \
+    lsb-release \
+    && git lfs install \
+    && rm -rf /var/lib/apt/lists/*
+
+# packages required by miniconda
 # hadolint ignore=DL3008
 RUN apt-get update -q && \
     apt-get install -q -y --no-install-recommends \
-        bzip2 \
-        ca-certificates \
-        git \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        mercurial \
-        openssh-client \
-        procps \
-        subversion \
-        wget \
-        rsync \
+    bzip2 \
+    ca-certificates \
+    git \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    mercurial \
+    openssh-client \
+    procps \
+    subversion \
+    wget \
+    rsync \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,29 +61,55 @@ RUN curl -LO "https://dl.k8s.io/release/v1.23.5/bin/linux/amd64/kubectl" && \
     rm kubectl && \
     rm kubectl.sha256
 
+# set up user for code server
+RUN adduser --gecos '' --disabled-password coder \
+    && echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/nopasswd
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/boxboat/fixuid/releases/download/v0.5/fixuid-0.5-linux-${ARCH}.tar.gz" | tar -C /usr/local/bin -xzf - \
+    && chown root:root /usr/local/bin/fixuid \
+    && chmod 4755 /usr/local/bin/fixuid \
+    && mkdir -p /etc/fixuid \
+    && printf "user: coder\ngroup: coder\n" > /etc/fixuid/config.yml
+
+# download and install code server
+ARG CODE_SERVER_VERSION=4.10.1
+RUN ARCH="$(dpkg --print-architecture)" \ 
+    && curl -LO "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb" \
+    && curl -LO "https://raw.githubusercontent.com/coder/code-server/v${CODE_SERVER_VERSION}/ci/release-image/entrypoint.sh" \
+    && cp /tmp/entrypoint.sh /usr/bin/entrypoint.sh \
+    && chmod +x /usr/bin/entrypoint.sh \
+    && dpkg -i /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb
+
+# Allow users to have scripts run on container startup to prepare workspace.
+# https://github.com/coder/code-server/issues/5177
+ENV ENTRYPOINTD=${HOME}/entrypoint.d
+
+EXPOSE 8080
+# This way, if someone sets $DOCKER_USER, docker-exec will still work as
+# the uid will remain the same. note: only relevant if -u isn't passed to
+# docker-run.
 USER 1000
 ENV USER=coder
 WORKDIR /home/coder
 
+# install conda as regular user
 ENV PATH /home/coder/conda/bin:$PATH
-
-# Leave these args here to better use the Docker build cache
-ARG CONDA_VERSION=py39_4.12.0
-
+ARG CONDA_VERSION=py310_23.1.0-1
 RUN set -x && \
     UNAME_M="$(uname -m)" && \
     if [ "${UNAME_M}" = "x86_64" ]; then \
-        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-x86_64.sh"; \
-        SHA256SUM="78f39f9bae971ec1ae7969f0516017f2413f17796670f7040725dd83fcff5689"; \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-x86_64.sh"; \
+    SHA256SUM="32d73e1bc33fda089d7cd9ef4c1be542616bd8e437d1f77afeeaf7afdb019787"; \
     elif [ "${UNAME_M}" = "s390x" ]; then \
-        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-s390x.sh"; \
-        SHA256SUM="ff6fdad3068ab5b15939c6f422ac329fa005d56ee0876c985e22e622d930e424"; \
-    elif [ "${UNAME_M}" = "aarch64" ]; then \
-        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-aarch64.sh"; \
-        SHA256SUM="5f4f865812101fdc747cea5b820806f678bb50fe0a61f19dc8aa369c52c4e513"; \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-s390x.sh"; \
+    SHA256SUM="0d00a9d34c5fd17d116bf4e7c893b7441a67c7a25416ede90289d87216104a97"; \
     elif [ "${UNAME_M}" = "ppc64le" ]; then \
-        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-ppc64le.sh"; \
-        SHA256SUM="1fe3305d0ccc9e55b336b051ae12d82f33af408af4b560625674fa7ad915102b"; \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-ppc64le.sh"; \
+    SHA256SUM="9ca8077a0af8845fc574a120ef8d68690d7a9862d354a2a4468de5d2196f406c"; \
+    elif [ "${UNAME_M}" = "aarch64" ]; then \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-aarch64.sh"; \
+    SHA256SUM="80d6c306b015e1e3b01ea59dc66c676a81fa30279bc2da1f180a7ef7b2191d6e"; \
     fi && \
     wget "${MINICONDA_URL}" -O miniconda.sh -q && \
     echo "${SHA256SUM} miniconda.sh" > shasum && \
