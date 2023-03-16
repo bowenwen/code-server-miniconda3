@@ -35,6 +35,7 @@ RUN apt-get update \
     vim.tiny \
     lsb-release \
     && git lfs install \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # packages required by miniconda
@@ -81,9 +82,10 @@ ARG CODE_SERVER_VERSION=4.10.1
 RUN ARCH="$(dpkg --print-architecture)" \ 
     && curl -LO "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb" \
     && curl -LO "https://raw.githubusercontent.com/coder/code-server/v${CODE_SERVER_VERSION}/ci/release-image/entrypoint.sh" \
-    && cp /tmp/entrypoint.sh /usr/bin/entrypoint.sh \
+    && mv /tmp/entrypoint.sh /usr/bin/entrypoint.sh \
     && chmod +x /usr/bin/entrypoint.sh \
-    && dpkg -i /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb
+    && dpkg -i /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb \
+    && rm /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb
 
 # Allow users to have scripts run on container startup to prepare workspace.
 # https://github.com/coder/code-server/issues/5177
