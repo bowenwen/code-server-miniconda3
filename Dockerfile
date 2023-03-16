@@ -1,4 +1,8 @@
-FROM ubuntu:jammy-20230301
+# use cuda devel base image to enable nvidia gpu compute
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+
+# # use ubuntu base image for cpu compute only
+# FROM ubuntu:jammy-20230301
 
 LABEL authors="Bo Wen"
 
