@@ -1,5 +1,5 @@
 # use cuda devel base image to enable nvidia gpu compute
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM nvidia/cuda:11.7.1-devel-ubuntu22.04
 
 # # use ubuntu base image for cpu compute only
 # FROM ubuntu:jammy-20230301
@@ -165,4 +165,4 @@ USER 1000
 ENV USER=coder
 WORKDIR /home/coder
 
-ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:8080", "."]
+ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:8443", "."]
