@@ -78,7 +78,7 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && printf "user: coder\ngroup: coder\n" > /etc/fixuid/config.yml
 
 # download and install code server
-ARG CODE_SERVER_VERSION=4.10.1
+ARG CODE_SERVER_VERSION=4.11.0
 RUN ARCH="$(dpkg --print-architecture)" \ 
     && curl -LO "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb" \
     && curl -LO "https://raw.githubusercontent.com/coder/code-server/v${CODE_SERVER_VERSION}/ci/release-image/entrypoint.sh" \
