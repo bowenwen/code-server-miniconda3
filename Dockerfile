@@ -159,6 +159,8 @@ COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 # docker cp $id:/usr/lib/code-server/out/node/cli.js -> rootfs/node/cli.js
 # docker cp $id:/usr/lib/code-server/out/node/routes/login.js -> rootfs/node/routes/login.js
 # docker cp $id:/usr/lib/code-server/src/browser/pages/login.html -> rootfs/login.html
+# mkdir -p tmp
+# docker cp $id:/home/coder/. ./tmp/coder
 # docker rm -v $id
 
 USER 1000
