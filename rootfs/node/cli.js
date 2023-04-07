@@ -32,7 +32,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toCodeArgs = exports.shouldOpenInExistingInstance = exports.readSocketPath = exports.bindAddrFromArgs = exports.parseConfigFile = exports.readConfigFile = exports.defaultConfigFile = exports.setDefaults = exports.parse = exports.splitOnFirstEquals = exports.optionDescriptions = exports.options = exports.OptionalString = exports.LogLevel = exports.Optional = exports.AuthType = exports.Feature = void 0;
+exports.toCodeArgs = exports.shouldOpenInExistingInstance = exports.readSocketPath = exports.bindAddrFromArgs = exports.parseConfigFile = exports.readConfigFile = exports.defaultConfigFile = exports.setDefaults = exports.parse = exports.optionDescriptions = exports.options = exports.OptionalString = exports.LogLevel = exports.Optional = exports.AuthType = exports.Feature = void 0;
 const logger_1 = require("@coder/logger");
 const fs_1 = require("fs");
 const js_yaml_1 = require("js-yaml");
@@ -211,18 +211,6 @@ const optionDescriptions = (opts = exports.options) => {
     });
 };
 exports.optionDescriptions = optionDescriptions;
-function splitOnFirstEquals(str) {
-    // we use regex instead of "=" to ensure we split at the first
-    // "=" and return the following substring with it
-    // important for the hashed-password which looks like this
-    // $argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY
-    // 2 means return two items
-    // Source: https://stackoverflow.com/a/4607799/3015595
-    // We use the ? to say the the substr after the = is optional
-    const split = str.split(/=(.+)?/, 2);
-    return split;
-}
-exports.splitOnFirstEquals = splitOnFirstEquals;
 /**
  * Parse arguments into UserProvidedArgs.  This should not go beyond checking
  * that arguments are valid types and have values when required.
@@ -248,7 +236,7 @@ const parse = (argv, opts) => {
             let key;
             let value;
             if (arg.startsWith("--")) {
-                const split = splitOnFirstEquals(arg.replace(/^--/, ""));
+                const split = (0, util_1.splitOnFirstEquals)(arg.replace(/^--/, ""));
                 key = split[0];
                 value = split[1];
             }
