@@ -8,7 +8,7 @@ A docker build of vs code server with Miniconda 3 and two factor authentication.
 Once you have docker installed, simply build this image:
 
 ```
-docker build -t code-server-miniconda3 .
+docker build -t code-server-miniconda3:latest .
 ```
 
 ### Set up for two factor authentication
@@ -46,8 +46,10 @@ To disable two factor, comment out the block of code from Line 78 to 92 in `Dock
 Starting the server using the same config as the base code-server:
 
 ```
-docker run -it --rm --name code-server -p 127.0.0.1:8080:8080 \
-  -v "$HOME/.config:/home/coder/.config" \
+sudo mkdir -p $HOME/coder/.config/code-server
+sudo chmod 777 -R $HOME/coder/.config
+docker run -it --rm --name code-server -p 0.0.0.0:8888:8080 \
+  -v "$HOME/coder/.config:/home/coder/.config" \
   -v "$PWD:/home/coder/project" \
   -u "$(id -u):$(id -g)" \
   -e "DOCKER_USER=$USER" \
@@ -58,4 +60,15 @@ docker run -it --rm --name code-server -p 127.0.0.1:8080:8080 \
 
 Since vs code server does not support two FA out of the box, the build from this repo modifies the back end of login.js to add a set of new conditions to check for two factor code using `node-2fa`. To use two FA at login, append the 6 numeric digit time-based two factor code after your password. For example, if your password is `mypassword123abc`, and at the time of login, your two factor code is `111111`, the full password that you need to enter at login would be `mypassword123abc111111`.
 
+## Maintaining your code server
+
+### Persisting environment
+
+In order to persist your conda environments between docker containers, you may want to copy the latest miniconda folder from the image within the `home/coder/conda` folder into your local and mount it. You can follow the same method to upgrade your environment to a newer conda version:
+
+```
+docker create --name dummy IMAGE_NAME
+docker cp dummy:/path/to/file /dest/to/file
+docker rm -f dummy
+```
 
