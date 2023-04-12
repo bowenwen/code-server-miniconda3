@@ -151,10 +151,10 @@ COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 
 # NOTE: when bumping version, comment out previous block for two factor auth,
 # and build a basic version of the image (name it with dev tag),
-# docker build -t code-server-miniconda3:latest .
+# docker build -t code-server-miniconda3:temp .
 # then copy the relevant files out of the image and then resolve conflict.
 # uncomment previous block after conflicts are all resolved.
-# id=$(docker create code-server-miniconda3:latest)
+# id=$(docker create code-server-miniconda3:temp)
 # [docker cp $id:path - > local-tar-file]
 # docker cp $id:/usr/lib/code-server/out/node/cli.js -> rootfs/node/cli.js
 # docker cp $id:/usr/lib/code-server/out/node/routes/login.js -> rootfs/node/routes/login.js

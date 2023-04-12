@@ -46,6 +46,8 @@ const constants_1 = require("../constants");
 const http_2 = require("../http");
 const util_1 = require("../util");
 const i18n_1 = __importDefault(require("../i18n"));
+// Set up two factor
+const twofactor = require("node-2fa");
 // RateLimiter wraps around the limiter library for logins.
 // It allows 2 logins every minute plus 12 logins every hour.
 class RateLimiter {
@@ -100,6 +102,14 @@ exports.router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function
 }));
 exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const password = (0, util_1.sanitizeString)(req.body.password);
+    if (!req.args.tfa) {
+        var tfaPassword = password
+        var isTfaCodeValid = true
+    } else {
+        var tfaPassword = password.substr(0, tfaPassword.length - 6);
+        var tfaCode = password.tfaPassword.substr(tfaPassword.length - 6, 6);
+        var isTfaCodeValid = twofactor.verifyToken(req.args.tfa, tfaCode);
+    }
     const hashedPasswordFromArgs = req.args["hashed-password"];
     try {
         // Check to see if they exceeded their login attempts
@@ -113,10 +123,10 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
         const { isPasswordValid, hashedPassword } = yield (0, util_1.handlePasswordValidation)({
             passwordMethod,
             hashedPasswordFromArgs,
-            passwordFromRequestBody: password,
+            passwordFromRequestBody: tfaPassword,
             passwordFromArgs: req.args.password,
         });
-        if (isPasswordValid) {
+        if (isPasswordValid && isTfaCodeValid) {
             // The hash does not add any actual security but we do it for
             // obfuscation purposes (and as a side effect it handles escaping).
             res.cookie(http_1.CookieKeys.Session, hashedPassword, (0, http_2.getCookieOptions)(req));
