@@ -46,8 +46,6 @@ const constants_1 = require("../constants");
 const http_2 = require("../http");
 const util_1 = require("../util");
 const i18n_1 = __importDefault(require("../i18n"));
-// Set up two factor
-const twofactor = require("node-2fa");
 // RateLimiter wraps around the limiter library for logins.
 // It allows 2 logins every minute plus 12 logins every hour.
 class RateLimiter {
@@ -101,9 +99,7 @@ exports.router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function
     res.send(yield getRoot(req));
 }));
 exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var tfaPassword = (0, util_1.sanitizeString)(req.body.password);
-    var password = tfaPassword.substr(0, tfaPassword.length-6)
-    var tfaCode = tfaPassword.substr(tfaPassword.length-6, 6)
+    const password = (0, util_1.sanitizeString)(req.body.password);
     const hashedPasswordFromArgs = req.args["hashed-password"];
     try {
         // Check to see if they exceeded their login attempts
@@ -113,16 +109,6 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
         if (!password) {
             throw new Error(i18n_1.default.t("MISS_PASSWORD"));
         }
-        if (!req.args.password) {
-            throw new Error("Missing password in config, please check config.yaml.");
-        }
-        if (!tfaCode) {
-            throw new Error("Missing 2 factor code");
-        }
-        if (!req.args.tfa) {
-            throw new Error("Missing 2 factor secret, please check config.yaml.");
-        }
-        const twofacheck = twofactor.verifyToken(req.args.tfa, tfaCode);
         const passwordMethod = (0, util_1.getPasswordMethod)(hashedPasswordFromArgs);
         const { isPasswordValid, hashedPassword } = yield (0, util_1.handlePasswordValidation)({
             passwordMethod,
@@ -130,7 +116,7 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
             passwordFromRequestBody: password,
             passwordFromArgs: req.args.password,
         });
-        if (isPasswordValid&&twofacheck) {
+        if (isPasswordValid) {
             // The hash does not add any actual security but we do it for
             // obfuscation purposes (and as a side effect it handles escaping).
             res.cookie(http_1.CookieKeys.Session, hashedPassword, (0, http_2.getCookieOptions)(req));
