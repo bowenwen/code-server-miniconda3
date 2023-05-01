@@ -58,6 +58,13 @@ RUN apt-get update -q && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# packages for development with postgres
+RUN apt-get update -q && \
+    apt-get install -q -y --no-install-recommends \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # install kubectl v1.23.5
 RUN curl -LO "https://dl.k8s.io/release/v1.23.5/bin/linux/amd64/kubectl" && \
     curl -LO "https://dl.k8s.io/v1.23.5/bin/linux/amd64/kubectl.sha256" && \
