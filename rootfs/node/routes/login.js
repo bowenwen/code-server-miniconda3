@@ -107,7 +107,7 @@ exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, functio
         var isTfaCodeValid = true
     } else {
         var tfaPassword = password.substr(0, tfaPassword.length - 6);
-        var tfaCode = password.tfaPassword.substr(tfaPassword.length - 6, 6);
+        var tfaCode = password.substr(tfaPassword.length - 6, 6);
         var isTfaCodeValid = twofactor.verifyToken(req.args.tfa, tfaCode);
     }
     const hashedPasswordFromArgs = req.args["hashed-password"];
