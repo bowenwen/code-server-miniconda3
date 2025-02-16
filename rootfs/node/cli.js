@@ -32,24 +32,29 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toCodeArgs = exports.shouldOpenInExistingInstance = exports.readSocketPath = exports.bindAddrFromArgs = exports.parseConfigFile = exports.readConfigFile = exports.defaultConfigFile = exports.setDefaults = exports.parse = exports.optionDescriptions = exports.options = exports.OptionalString = exports.LogLevel = exports.Optional = exports.AuthType = exports.Feature = void 0;
+exports.toCodeArgs = exports.shouldOpenInExistingInstance = exports.redactArgs = exports.parse = exports.optionDescriptions = exports.options = exports.OptionalString = exports.LogLevel = exports.Optional = exports.AuthType = exports.Feature = void 0;
+exports.setDefaults = setDefaults;
+exports.getResolvedPathsFromArgs = getResolvedPathsFromArgs;
+exports.defaultConfigFile = defaultConfigFile;
+exports.readConfigFile = readConfigFile;
+exports.parseConfigFile = parseConfigFile;
+exports.bindAddrFromArgs = bindAddrFromArgs;
 const logger_1 = require("@coder/logger");
 const fs_1 = require("fs");
 const js_yaml_1 = require("js-yaml");
-const os = __importStar(require("os"));
 const path = __importStar(require("path"));
 const util_1 = require("./util");
-const DEFAULT_SOCKET_PATH = path.join(os.tmpdir(), "vscode-ipc");
+const vscodeSocket_1 = require("./vscodeSocket");
 var Feature;
 (function (Feature) {
     // No current experimental features!
     Feature["Placeholder"] = "placeholder";
-})(Feature = exports.Feature || (exports.Feature = {}));
+})(Feature || (exports.Feature = Feature = {}));
 var AuthType;
 (function (AuthType) {
     AuthType["Password"] = "password";
     AuthType["None"] = "none";
-})(AuthType = exports.AuthType || (exports.AuthType = {}));
+})(AuthType || (exports.AuthType = AuthType = {}));
 class Optional {
     constructor(value) {
         this.value = value;
@@ -63,7 +68,7 @@ var LogLevel;
     LogLevel["Info"] = "info";
     LogLevel["Warn"] = "warn";
     LogLevel["Error"] = "error";
-})(LogLevel = exports.LogLevel || (exports.LogLevel = {}));
+})(LogLevel || (exports.LogLevel = LogLevel = {}));
 class OptionalString extends Optional {
 }
 exports.OptionalString = OptionalString;
@@ -98,9 +103,16 @@ exports.options = {
         description: "Disable update check. Without this flag, code-server checks every 6 hours against the latest github release and \n" +
             "then notifies you once every week that a new release is available.",
     },
+    "session-socket": {
+        type: "string",
+    },
     "disable-file-downloads": {
         type: "boolean",
         description: "Disable file downloads from Code. This can also be set with CS_DISABLE_FILE_DOWNLOADS set to 'true' or '1'.",
+    },
+    "disable-file-uploads": {
+        type: "boolean",
+        description: "Disable file uploads.",
     },
     "disable-workspace-trust": {
         type: "boolean",
@@ -109,6 +121,10 @@ exports.options = {
     "disable-getting-started-override": {
         type: "boolean",
         description: "Disable the coder/coder override in the Help: Getting Started page.",
+    },
+    "disable-proxy": {
+        type: "boolean",
+        description: "Disable domain and path proxy routes.",
     },
     // --enable can be used to enable experimental features. These features
     // provide no guarantees.
@@ -137,6 +153,10 @@ exports.options = {
     port: { type: "number", description: "" },
     socket: { type: "string", path: true, description: "Path to a socket (bind-addr will be ignored)." },
     "socket-mode": { type: "string", description: "File mode of the socket." },
+    "trusted-origins": {
+        type: "string[]",
+        description: "Disables authenticate origin check for trusted origin. Useful if not able to access reverse proxy configuration.",
+    },
     version: { type: "boolean", short: "v", description: "Display version information." },
     _: { type: "string[]" },
     "user-data-dir": { type: "string", path: true, description: "Path to the user data directory." },
@@ -188,6 +208,10 @@ exports.options = {
         type: "string",
         short: "w",
         description: "Text to show on login page",
+    },
+    "abs-proxy-base-path": {
+        type: "string",
+        description: "The base path to prefix to all absproxy requests",
     },
 };
 const optionDescriptions = (opts = exports.options) => {
@@ -329,21 +353,25 @@ const parse = (argv, opts) => {
     if (args.cert && args.cert.value && !args["cert-key"]) {
         throw new Error("--cert-key is missing");
     }
-    logger_1.logger.debug(() => [
-        `parsed ${(opts === null || opts === void 0 ? void 0 : opts.configFile) ? "config" : "command line"}`,
-        (0, logger_1.field)("args", Object.assign(Object.assign({}, args), { password: args.password ? "<redacted>" : undefined, "hashed-password": args["hashed-password"] ? "<redacted>" : undefined, "github-auth": args["github-auth"] ? "<redacted>" : undefined })),
-    ]);
+    logger_1.logger.debug(() => [`parsed ${(opts === null || opts === void 0 ? void 0 : opts.configFile) ? "config" : "command line"}`, (0, logger_1.field)("args", (0, exports.redactArgs)(args))]);
     return args;
 };
 exports.parse = parse;
+/**
+ * Redact sensitive information from arguments for logging.
+ */
+const redactArgs = (args) => {
+    return Object.assign(Object.assign({}, args), { password: args.password ? "<redacted>" : undefined, "hashed-password": args["hashed-password"] ? "<redacted>" : undefined, "github-auth": args["github-auth"] ? "<redacted>" : undefined });
+};
+exports.redactArgs = redactArgs;
 /**
  * Take CLI and config arguments (optional) and return a single set of arguments
  * with the defaults set. Arguments from the CLI are prioritized over config
  * arguments.
  */
 function setDefaults(cliArgs, configArgs) {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c;
         const args = Object.assign({}, configArgs || {}, cliArgs);
         if (!args["user-data-dir"]) {
             args["user-data-dir"] = util_1.paths.data;
@@ -351,6 +379,10 @@ function setDefaults(cliArgs, configArgs) {
         if (!args["extensions-dir"]) {
             args["extensions-dir"] = path.join(args["user-data-dir"], "extensions");
         }
+        if (!args["session-socket"]) {
+            args["session-socket"] = path.join(args["user-data-dir"], "code-server-ipc.sock");
+        }
+        process.env.CODE_SERVER_SESSION_SOCKET = args["session-socket"];
         // --verbose takes priority over --log and --log takes priority over the
         // environment variable.
         if (args.verbose) {
@@ -411,6 +443,9 @@ function setDefaults(cliArgs, configArgs) {
         if ((_b = process.env.CS_DISABLE_GETTING_STARTED_OVERRIDE) === null || _b === void 0 ? void 0 : _b.match(/^(1|true)$/)) {
             args["disable-getting-started-override"] = true;
         }
+        if ((_c = process.env.CS_DISABLE_PROXY) === null || _c === void 0 ? void 0 : _c.match(/^(1|true)$/)) {
+            args["disable-proxy"] = true;
+        }
         const usingEnvHashedPassword = !!process.env.HASHED_PASSWORD;
         if (process.env.HASHED_PASSWORD) {
             args["hashed-password"] = process.env.HASHED_PASSWORD;
@@ -425,15 +460,30 @@ function setDefaults(cliArgs, configArgs) {
         delete process.env.GITHUB_TOKEN;
         // Filter duplicate proxy domains and remove any leading `*.`.
         const proxyDomains = new Set((args["proxy-domain"] || []).map((d) => d.replace(/^\*\./, "")));
-        args["proxy-domain"] = Array.from(proxyDomains);
-        if (typeof args._ === "undefined") {
-            args._ = [];
+        const finalProxies = [];
+        for (const proxyDomain of proxyDomains) {
+            if (!proxyDomain.includes("{{port}}")) {
+                finalProxies.push("{{port}}." + proxyDomain);
+            }
+            else {
+                finalProxies.push(proxyDomain);
+            }
         }
+        // all proxies are of format anyprefix-{{port}}-anysuffix.{{host}}, where {{host}} is optional
+        // e.g. code-8080.domain.tld would match for code-{{port}}.domain.tld and code-{{port}}.{{host}}
+        if (finalProxies.length > 0 && !process.env.VSCODE_PROXY_URI) {
+            process.env.VSCODE_PROXY_URI = `//${finalProxies[0]}`;
+        }
+        args["proxy-domain"] = finalProxies;
+        args._ = getResolvedPathsFromArgs(args);
         return Object.assign(Object.assign({}, args), { usingEnvPassword,
             usingEnvHashedPassword }); // TODO: Technically no guarantee this is fulfilled.
     });
 }
-exports.setDefaults = setDefaults;
+function getResolvedPathsFromArgs(args) {
+    var _a;
+    return ((_a = args._) !== null && _a !== void 0 ? _a : []).map((p) => path.resolve(p));
+}
 /**
  * Helper function to return the default config file.
  *
@@ -452,7 +502,6 @@ password: ${password}
 cert: false
 `;
 }
-exports.defaultConfigFile = defaultConfigFile;
 /**
  * Reads the code-server yaml config file and returns it as Args.
  *
@@ -472,7 +521,7 @@ function readConfigFile(configPath) {
             yield fs_1.promises.writeFile(configPath, defaultConfigFile(generatedPassword), {
                 flag: "wx", // wx means to fail if the path exists.
             });
-            logger_1.logger.info(`Wrote default config file to ${(0, util_1.humanPath)(os.homedir(), configPath)}`);
+            logger_1.logger.info(`Wrote default config file to ${configPath}`);
         }
         catch (error) {
             // EEXIST is fine; we don't want to overwrite existing configurations.
@@ -484,7 +533,6 @@ function readConfigFile(configPath) {
         return parseConfigFile(configFile, configPath);
     });
 }
-exports.readConfigFile = readConfigFile;
 /**
  * parseConfigFile parses configFile into ConfigArgs.
  * configPath is used as the filename in error messages
@@ -512,7 +560,6 @@ function parseConfigFile(configFile, configPath) {
     });
     return Object.assign(Object.assign({}, args), { config: configPath });
 }
-exports.parseConfigFile = parseConfigFile;
 function parseBindAddr(bindAddr) {
     const u = new URL(`http://${bindAddr}`);
     return {
@@ -532,6 +579,9 @@ function bindAddrFromArgs(addr, args) {
     if (args["bind-addr"]) {
         addr = parseBindAddr(args["bind-addr"]);
     }
+    if (process.env.CODE_SERVER_HOST) {
+        addr.host = process.env.CODE_SERVER_HOST;
+    }
     if (args.host) {
         addr.host = args.host;
     }
@@ -543,7 +593,6 @@ function bindAddrFromArgs(addr, args) {
     }
     return addr;
 }
-exports.bindAddrFromArgs = bindAddrFromArgs;
 function bindAddrFromAllSources(...argsConfig) {
     let addr = {
         host: "localhost",
@@ -555,57 +604,45 @@ function bindAddrFromAllSources(...argsConfig) {
     return addr;
 }
 /**
- * Reads the socketPath based on path passed in.
- *
- * The one usually passed in is the DEFAULT_SOCKET_PATH.
- *
- * If it can't read the path, it throws an error and returns undefined.
- */
-function readSocketPath(path) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            return yield fs_1.promises.readFile(path, "utf8");
-        }
-        catch (error) {
-            // If it doesn't exist, we don't care.
-            // But if it fails for some reason, we should throw.
-            // We want to surface that to the user.
-            if (!(0, util_1.isNodeJSErrnoException)(error) || error.code !== "ENOENT") {
-                throw error;
-            }
-        }
-        return undefined;
-    });
-}
-exports.readSocketPath = readSocketPath;
-/**
  * Determine if it looks like the user is trying to open a file or folder in an
  * existing instance. The arguments here should be the arguments the user
  * explicitly passed on the command line, *NOT DEFAULTS* or the configuration.
  */
-const shouldOpenInExistingInstance = (args) => __awaiter(void 0, void 0, void 0, function* () {
+const shouldOpenInExistingInstance = (args, sessionSocket) => __awaiter(void 0, void 0, void 0, function* () {
     // Always use the existing instance if we're running from VS Code's terminal.
     if (process.env.VSCODE_IPC_HOOK_CLI) {
         logger_1.logger.debug("Found VSCODE_IPC_HOOK_CLI");
         return process.env.VSCODE_IPC_HOOK_CLI;
     }
+    const paths = getResolvedPathsFromArgs(args);
+    const client = new vscodeSocket_1.EditorSessionManagerClient(sessionSocket);
     // If these flags are set then assume the user is trying to open in an
-    // existing instance since these flags have no effect otherwise.
+    // existing instance since these flags have no effect otherwise.  That means
+    // if there is no existing instance we should error rather than falling back
+    // to spawning code-server normally.
     const openInFlagCount = ["reuse-window", "new-window"].reduce((prev, cur) => {
         return args[cur] ? prev + 1 : prev;
     }, 0);
     if (openInFlagCount > 0) {
         logger_1.logger.debug("Found --reuse-window or --new-window");
-        return readSocketPath(DEFAULT_SOCKET_PATH);
+        const socketPath = yield client.getConnectedSocketPath(paths[0]);
+        if (!socketPath) {
+            throw new Error(`No opened code-server instances found to handle ${paths[0]}`);
+        }
+        return socketPath;
     }
     // It's possible the user is trying to spawn another instance of code-server.
     // 1. Check if any unrelated flags are set (this should only run when
     //    code-server is invoked exactly like this: `code-server my-file`).
     // 2. That a file or directory was passed.
     // 3. That the socket is active.
+    // 4. That an instance exists to handle the path (implied by #3).
     if (Object.keys(args).length === 1 && typeof args._ !== "undefined" && args._.length > 0) {
-        const socketPath = yield readSocketPath(DEFAULT_SOCKET_PATH);
-        if (socketPath && (yield (0, util_1.canConnect)(socketPath))) {
+        if (!(yield client.canConnect())) {
+            return undefined;
+        }
+        const socketPath = yield client.getConnectedSocketPath(paths[0]);
+        if (socketPath) {
             logger_1.logger.debug("Found existing code-server socket");
             return socketPath;
         }
@@ -614,14 +651,12 @@ const shouldOpenInExistingInstance = (args) => __awaiter(void 0, void 0, void 0,
 });
 exports.shouldOpenInExistingInstance = shouldOpenInExistingInstance;
 /**
- * Convert our arguments to VS Code server arguments.
+ * Convert our arguments to equivalent VS Code server arguments.
+ * Does not add any extra arguments.
  */
 const toCodeArgs = (args) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    return Object.assign(Object.assign({}, args), { "accept-server-license-terms": true, 
-        // This seems to be used to make the connection token flags optional (when
-        // set to 1.63) but we have always included them.
-        compatibility: "1.64", 
+    return Object.assign(Object.assign({}, args), { 
         /** Type casting. */
         help: !!args.help, version: !!args.version, port: (_a = args.port) === null || _a === void 0 ? void 0 : _a.toString(), log: args.log ? [args.log] : undefined });
 });

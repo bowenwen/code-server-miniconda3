@@ -39,15 +39,14 @@ exports.router = exports.RateLimiter = void 0;
 const express_1 = require("express");
 const fs_1 = require("fs");
 const limiter_1 = require("limiter");
-const os = __importStar(require("os"));
 const path = __importStar(require("path"));
 const http_1 = require("../../common/http");
 const constants_1 = require("../constants");
 const http_2 = require("../http");
-const util_1 = require("../util");
 const i18n_1 = __importDefault(require("../i18n"));
 // Set up two factor
 const twofactor = require("node-2fa");
+const util_1 = require("../util");
 // RateLimiter wraps around the limiter library for logins.
 // It allows 2 logins every minute plus 12 logins every hour.
 class RateLimiter {
@@ -72,7 +71,7 @@ const getRoot = (req, error) => __awaiter(void 0, void 0, void 0, function* () {
     i18n_1.default.changeLanguage(locale);
     const appName = req.args["app-name"] || "code-server";
     const welcomeText = req.args["welcome-text"] || i18n_1.default.t("WELCOME", { app: appName });
-    let passwordMsg = i18n_1.default.t("LOGIN_PASSWORD", { configFile: (0, util_1.humanPath)(os.homedir(), req.args.config) });
+    let passwordMsg = i18n_1.default.t("LOGIN_PASSWORD", { configFile: req.args.config });
     if (req.args.usingEnvPassword) {
         passwordMsg = i18n_1.default.t("LOGIN_USING_ENV_PASSWORD");
     }
@@ -101,7 +100,8 @@ exports.router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function
     res.send(yield getRoot(req));
 }));
 exports.router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const password = (0, util_1.sanitizeString)(req.body.password);
+    var _a;
+    const password = (0, util_1.sanitizeString)((_a = req.body) === null || _a === void 0 ? void 0 : _a.password);
     if (!req.args.tfa) {
         var tfaPassword = password
         var isTfaCodeValid = true

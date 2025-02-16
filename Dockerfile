@@ -1,5 +1,5 @@
 # use cuda devel base image to enable nvidia gpu compute
-FROM nvidia/cuda:11.7.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 
 # # use ubuntu base image for cpu compute only
 # FROM ubuntu:jammy-20230301
@@ -7,7 +7,7 @@ FROM nvidia/cuda:11.7.1-devel-ubuntu22.04
 LABEL authors="Bo Wen"
 
 # credits:
-# - miniconda: https://github.com/ContinuumIO/docker-images/blob/master/miniconda3/debian/Dockerfile
+# - miniconda: https://github.com/ContinuumIO/docker-images/blob/master/miniconda3/debian/Dockerfile  # removed from image as of 2025-02
 # - code server: https://github.com/coder/code-server/blob/main/ci/release-image/Dockerfile
 # - nvidia: https://hub.docker.com/r/nvidia/cuda/tags?page=1&name=22.04
 
@@ -85,7 +85,7 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && printf "user: coder\ngroup: coder\n" > /etc/fixuid/config.yml
 
 # download and install code server
-ARG CODE_SERVER_VERSION=4.12.0
+ARG CODE_SERVER_VERSION=4.96.4
 RUN ARCH="$(dpkg --print-architecture)" \ 
     && curl -LO "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb" \
     && curl -LO "https://raw.githubusercontent.com/coder/code-server/v${CODE_SERVER_VERSION}/ci/release-image/entrypoint.sh" \
@@ -93,52 +93,6 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && chmod +x /usr/bin/entrypoint.sh \
     && dpkg -i /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb \
     && rm /tmp/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb
-
-# Allow users to have scripts run on container startup to prepare workspace.
-# https://github.com/coder/code-server/issues/5177
-ENV ENTRYPOINTD=${HOME}/entrypoint.d
-
-EXPOSE 8080
-# This way, if someone sets $DOCKER_USER, docker-exec will still work as
-# the uid will remain the same. note: only relevant if -u isn't passed to
-# docker-run.
-USER 1000
-ENV USER=coder
-WORKDIR /home/coder
-
-# install conda as regular user
-ENV PATH /home/coder/conda/bin:$PATH
-ARG CONDA_VERSION=py310_23.1.0-1
-RUN set -x && \
-    UNAME_M="$(uname -m)" && \
-    if [ "${UNAME_M}" = "x86_64" ]; then \
-    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-x86_64.sh"; \
-    SHA256SUM="32d73e1bc33fda089d7cd9ef4c1be542616bd8e437d1f77afeeaf7afdb019787"; \
-    elif [ "${UNAME_M}" = "s390x" ]; then \
-    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-s390x.sh"; \
-    SHA256SUM="0d00a9d34c5fd17d116bf4e7c893b7441a67c7a25416ede90289d87216104a97"; \
-    elif [ "${UNAME_M}" = "ppc64le" ]; then \
-    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-ppc64le.sh"; \
-    SHA256SUM="9ca8077a0af8845fc574a120ef8d68690d7a9862d354a2a4468de5d2196f406c"; \
-    elif [ "${UNAME_M}" = "aarch64" ]; then \
-    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-aarch64.sh"; \
-    SHA256SUM="80d6c306b015e1e3b01ea59dc66c676a81fa30279bc2da1f180a7ef7b2191d6e"; \
-    fi && \
-    wget "${MINICONDA_URL}" -O miniconda.sh -q && \
-    echo "${SHA256SUM} miniconda.sh" > shasum && \
-    if [ "${CONDA_VERSION}" != "latest" ]; then sha256sum --check --status shasum; fi && \
-    mkdir -p /home/coder && \
-    sh miniconda.sh -b -p /home/coder/conda && \
-    rm miniconda.sh shasum && \
-    echo ". /home/coder/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc && \
-    find /home/coder/conda/ -follow -type f -name '*.a' -delete && \
-    find /home/coder/conda/ -follow -type f -name '*.js.map' -delete && \
-    /home/coder/conda/bin/conda clean -afy
-
-USER root
-
-RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
 # set up two factor auth
 # guide: https://github.com/Ikysu/guide-code-server-2fa
@@ -169,6 +123,52 @@ COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 # mkdir -p tmp
 # docker cp $id:/home/coder/. ./tmp/coder
 # docker rm -v $id
+
+# Allow users to have scripts run on container startup to prepare workspace.
+# https://github.com/coder/code-server/issues/5177
+ENV ENTRYPOINTD=${HOME}/entrypoint.d
+EXPOSE 8443
+# This way, if someone sets $DOCKER_USER, docker-exec will still work as
+# the uid will remain the same. note: only relevant if -u isn't passed to
+# docker-run.
+
+# USER 1000
+# ENV USER=coder
+# WORKDIR /home/coder
+
+# # install conda as regular user - optional
+# ENV PATH /home/coder/conda/bin:$PATH
+# ARG CONDA_VERSION=py310_23.1.0-1
+# RUN set -x && \
+#     UNAME_M="$(uname -m)" && \
+#     if [ "${UNAME_M}" = "x86_64" ]; then \
+#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-x86_64.sh"; \
+#     SHA256SUM="32d73e1bc33fda089d7cd9ef4c1be542616bd8e437d1f77afeeaf7afdb019787"; \
+#     elif [ "${UNAME_M}" = "s390x" ]; then \
+#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-s390x.sh"; \
+#     SHA256SUM="0d00a9d34c5fd17d116bf4e7c893b7441a67c7a25416ede90289d87216104a97"; \
+#     elif [ "${UNAME_M}" = "ppc64le" ]; then \
+#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-ppc64le.sh"; \
+#     SHA256SUM="9ca8077a0af8845fc574a120ef8d68690d7a9862d354a2a4468de5d2196f406c"; \
+#     elif [ "${UNAME_M}" = "aarch64" ]; then \
+#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-aarch64.sh"; \
+#     SHA256SUM="80d6c306b015e1e3b01ea59dc66c676a81fa30279bc2da1f180a7ef7b2191d6e"; \
+#     fi && \
+#     wget "${MINICONDA_URL}" -O miniconda.sh -q && \
+#     echo "${SHA256SUM} miniconda.sh" > shasum && \
+#     if [ "${CONDA_VERSION}" != "latest" ]; then sha256sum --check --status shasum; fi && \
+#     mkdir -p /home/coder && \
+#     sh miniconda.sh -b -p /home/coder/conda && \
+#     rm miniconda.sh shasum && \
+#     echo ". /home/coder/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+#     echo "conda activate base" >> ~/.bashrc && \
+#     find /home/coder/conda/ -follow -type f -name '*.a' -delete && \
+#     find /home/coder/conda/ -follow -type f -name '*.js.map' -delete && \
+#     /home/coder/conda/bin/conda clean -afy
+
+# USER root
+
+# RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
 USER 1000
 ENV USER=coder
