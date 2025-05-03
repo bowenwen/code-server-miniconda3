@@ -1,5 +1,5 @@
 # use cuda devel base image to enable nvidia gpu compute
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.1-devel-ubuntu24.04
 
 # # use ubuntu base image for cpu compute only
 # FROM ubuntu:jammy-20230301
@@ -65,24 +65,26 @@ RUN apt-get update -q && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# install kubectl v1.23.5
-RUN curl -LO "https://dl.k8s.io/release/v1.23.5/bin/linux/amd64/kubectl" && \
-    curl -LO "https://dl.k8s.io/v1.23.5/bin/linux/amd64/kubectl.sha256" && \
+# install kubectl v1.33.0
+RUN curl -LO "https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl" && \
+    curl -LO "https://dl.k8s.io/v1.33.0/bin/linux/amd64/kubectl.sha256" && \
     echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
     rm kubectl && \
     rm kubectl.sha256
 
 # set up user for code server
-RUN adduser --gecos '' --disabled-password coder \
-    && echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/nopasswd
-
-RUN ARCH="$(dpkg --print-architecture)" \
-    && curl -fsSL "https://github.com/boxboat/fixuid/releases/download/v0.5/fixuid-0.5-linux-${ARCH}.tar.gz" | tar -C /usr/local/bin -xzf - \
-    && chown root:root /usr/local/bin/fixuid \
-    && chmod 4755 /usr/local/bin/fixuid \
-    && mkdir -p /etc/fixuid \
-    && printf "user: coder\ngroup: coder\n" > /etc/fixuid/config.yml
+RUN userdel -r ubuntu
+# see - https://github.com/boxboat/fixuid?tab=readme-ov-file#install-fixuid-in-dockerfile
+RUN addgroup --gid 1000 coder && \
+    adduser --uid 1000 --ingroup coder --home /home/coder --shell /bin/sh --disabled-password --gecos "" coder
+RUN USER=coder && \
+    GROUP=coder && \
+    curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.6.0/fixuid-0.6.0-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
+    chown root:root /usr/local/bin/fixuid && \
+    chmod 4755 /usr/local/bin/fixuid && \
+    mkdir -p /etc/fixuid && \
+    printf "user: $USER\ngroup: $GROUP\n" > /etc/fixuid/config.yml
 
 # download and install code server
 ARG CODE_SERVER_VERSION=4.96.4
@@ -126,7 +128,7 @@ COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 
 # Allow users to have scripts run on container startup to prepare workspace.
 # https://github.com/coder/code-server/issues/5177
-ENV ENTRYPOINTD=${HOME}/entrypoint.d
+ENV ENTRYPOINTD=/home/coder/entrypoint.d
 EXPOSE 8443
 # This way, if someone sets $DOCKER_USER, docker-exec will still work as
 # the uid will remain the same. note: only relevant if -u isn't passed to
