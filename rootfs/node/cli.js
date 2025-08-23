@@ -15,13 +15,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
     __setModuleDefault(result, mod);
     return result;
 };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -131,6 +141,10 @@ exports.options = {
     enable: { type: "string[]" },
     help: { type: "boolean", short: "h", description: "Show this output." },
     json: { type: "boolean" },
+    "link-protection-trusted-domains": {
+        type: "string[]",
+        description: "Links matching a trusted domain can be opened without link protection.",
+    },
     locale: {
         // The preferred way to set the locale is via the UI.
         type: "string",
@@ -182,6 +196,10 @@ exports.options = {
         description: "GitHub authentication token (can only be passed in via $GITHUB_TOKEN or the config file).",
     },
     "proxy-domain": { type: "string[]", description: "Domain used for proxying ports." },
+    "skip-auth-preflight": {
+        type: "boolean",
+        description: "Allows preflight requests through proxy without authentication.",
+    },
     "ignore-last-opened": {
         type: "boolean",
         short: "e",
@@ -202,16 +220,22 @@ exports.options = {
     "app-name": {
         type: "string",
         short: "an",
-        description: "The name to use in branding. Will be shown in titlebar and welcome message",
+        description: "Will replace the {{app}} placeholder in any strings, which by default includes the title bar and welcome message",
     },
     "welcome-text": {
         type: "string",
         short: "w",
         description: "Text to show on login page",
+        deprecated: true,
     },
     "abs-proxy-base-path": {
         type: "string",
         description: "The base path to prefix to all absproxy requests",
+    },
+    i18n: {
+        type: "string",
+        path: true,
+        description: "Path to JSON file with custom translations. Merges with default strings and supports all i18n keys.",
     },
 };
 const optionDescriptions = (opts = exports.options) => {
@@ -549,12 +573,17 @@ function parseConfigFile(configFile, configPath) {
     }
     // We convert the config file into a set of flags.
     // This is a temporary measure until we add a proper CLI library.
-    const configFileArgv = Object.entries(config).map(([optName, opt]) => {
+    const configFileArgv = Object.entries(config)
+        .map(([optName, opt]) => {
         if (opt === true) {
             return `--${optName}`;
         }
+        else if (Array.isArray(opt)) {
+            return opt.map((o) => `--${optName}=${o}`);
+        }
         return `--${optName}=${opt}`;
-    });
+    })
+        .flat();
     const args = (0, exports.parse)(configFileArgv, {
         configFile: configPath,
     });

@@ -1,5 +1,5 @@
 # use cuda devel base image to enable nvidia gpu compute
-FROM nvidia/cuda:12.8.1-devel-ubuntu24.04
+FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
 
 # # use ubuntu base image for cpu compute only
 # FROM ubuntu:jammy-20230301
@@ -65,29 +65,8 @@ RUN apt-get update -q && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# install kubectl v1.33.0
-RUN curl -LO "https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl" && \
-    curl -LO "https://dl.k8s.io/v1.33.0/bin/linux/amd64/kubectl.sha256" && \
-    echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check && \
-    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
-    rm kubectl && \
-    rm kubectl.sha256
-
-# set up user for code server
-RUN userdel -r ubuntu
-# see - https://github.com/boxboat/fixuid?tab=readme-ov-file#install-fixuid-in-dockerfile
-RUN addgroup --gid 1000 coder && \
-    adduser --uid 1000 --ingroup coder --home /home/coder --shell /bin/sh --disabled-password --gecos "" coder
-RUN USER=coder && \
-    GROUP=coder && \
-    curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.6.0/fixuid-0.6.0-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
-    chown root:root /usr/local/bin/fixuid && \
-    chmod 4755 /usr/local/bin/fixuid && \
-    mkdir -p /etc/fixuid && \
-    printf "user: $USER\ngroup: $GROUP\n" > /etc/fixuid/config.yml
-
 # download and install code server
-ARG CODE_SERVER_VERSION=4.96.4
+ARG CODE_SERVER_VERSION=4.103.1
 RUN ARCH="$(dpkg --print-architecture)" \ 
     && curl -LO "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb" \
     && curl -LO "https://raw.githubusercontent.com/coder/code-server/v${CODE_SERVER_VERSION}/ci/release-image/entrypoint.sh" \
@@ -119,12 +98,71 @@ COPY /rootfs/login.html /usr/lib/code-server/src/browser/pages/login.html
 # uncomment previous block after conflicts are all resolved.
 # id=$(docker create code-server-miniconda3:temp)
 # [docker cp $id:path - > local-tar-file]
-# docker cp $id:/usr/lib/code-server/out/node/cli.js -> rootfs/node/cli.js
-# docker cp $id:/usr/lib/code-server/out/node/routes/login.js -> rootfs/node/routes/login.js
-# docker cp $id:/usr/lib/code-server/src/browser/pages/login.html -> rootfs/login.html
+# docker cp $id:/usr/lib/code-server/out/node/cli.js rootfs/node/cli.js
+# docker cp $id:/usr/lib/code-server/out/node/routes/login.js rootfs/node/routes/login.js
+# docker cp $id:/usr/lib/code-server/src/browser/pages/login.html rootfs/login.html
 # mkdir -p tmp
 # docker cp $id:/home/coder/. ./tmp/coder
 # docker rm -v $id
+
+# install miniforge
+# - from https://github.com/conda-forge/miniforge-images/blob/master/ubuntu/Dockerfile
+ARG MINIFORGE_NAME=Miniforge3
+ARG MINIFORGE_VERSION=25.3.1-0
+ENV CONDA_DIR=/opt/conda
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH=${CONDA_DIR}/bin:${PATH}
+
+# 1. Install just enough for conda to work
+# 2. Keep $HOME clean (no .wget-hsts file), since HSTS isn't useful in this context
+# 3. Install miniforge from GitHub releases
+# 4. Apply some cleanup tips from https://jcrist.github.io/conda-docker-tips.html
+#    Particularly, we remove pyc and a files. The default install has no js, we can skip that
+# 5. Activate base by default when running as any *non-root* user as well
+#    Good security practice requires running most workloads as non-root
+#    This makes sure any non-root users created also have base activated
+#    for their interactive shells.
+# 6. Activate base by default when running as root as well
+#    The root user is already created, so won't pick up changes to /etc/skel
+RUN apt-get update > /dev/null && \
+    apt-get install --no-install-recommends --yes \
+        wget bzip2 ca-certificates \
+        git \
+        tini \
+        > /dev/null && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    wget --no-hsts --quiet https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/${MINIFORGE_NAME}-${MINIFORGE_VERSION}-Linux-$(uname -m).sh -O /tmp/miniforge.sh && \
+    /bin/bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
+    rm /tmp/miniforge.sh && \
+    conda clean --tarballs --index-cache --packages --yes && \
+    find ${CONDA_DIR} -follow -type f -name '*.a' -delete && \
+    find ${CONDA_DIR} -follow -type f -name '*.pyc' -delete && \
+    conda clean --force-pkgs-dirs --all --yes  && \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
+
+# install kubectl
+ARG KUBECTL_VERSION=1.33.4
+RUN curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" && \
+    curl -LO "https://dl.k8s.io/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" && \
+    echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl && \
+    rm kubectl.sha256
+
+# set up user for code server
+RUN userdel -r ubuntu
+# see - https://github.com/boxboat/fixuid?tab=readme-ov-file#install-fixuid-in-dockerfile
+RUN addgroup --gid 1000 coder && \
+    adduser --uid 1000 --ingroup coder --home /home/coder --shell /bin/sh --disabled-password --gecos "" coder
+RUN USER=coder && \
+    GROUP=coder && \
+    curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.6.0/fixuid-0.6.0-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
+    chown root:root /usr/local/bin/fixuid && \
+    chmod 4755 /usr/local/bin/fixuid && \
+    mkdir -p /etc/fixuid && \
+    printf "user: $USER\ngroup: $GROUP\n" > /etc/fixuid/config.yml
 
 # Allow users to have scripts run on container startup to prepare workspace.
 # https://github.com/coder/code-server/issues/5177
@@ -133,44 +171,6 @@ EXPOSE 8443
 # This way, if someone sets $DOCKER_USER, docker-exec will still work as
 # the uid will remain the same. note: only relevant if -u isn't passed to
 # docker-run.
-
-# USER 1000
-# ENV USER=coder
-# WORKDIR /home/coder
-
-# # install conda as regular user - optional
-# ENV PATH /home/coder/conda/bin:$PATH
-# ARG CONDA_VERSION=py310_23.1.0-1
-# RUN set -x && \
-#     UNAME_M="$(uname -m)" && \
-#     if [ "${UNAME_M}" = "x86_64" ]; then \
-#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-x86_64.sh"; \
-#     SHA256SUM="32d73e1bc33fda089d7cd9ef4c1be542616bd8e437d1f77afeeaf7afdb019787"; \
-#     elif [ "${UNAME_M}" = "s390x" ]; then \
-#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-s390x.sh"; \
-#     SHA256SUM="0d00a9d34c5fd17d116bf4e7c893b7441a67c7a25416ede90289d87216104a97"; \
-#     elif [ "${UNAME_M}" = "ppc64le" ]; then \
-#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-ppc64le.sh"; \
-#     SHA256SUM="9ca8077a0af8845fc574a120ef8d68690d7a9862d354a2a4468de5d2196f406c"; \
-#     elif [ "${UNAME_M}" = "aarch64" ]; then \
-#     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-aarch64.sh"; \
-#     SHA256SUM="80d6c306b015e1e3b01ea59dc66c676a81fa30279bc2da1f180a7ef7b2191d6e"; \
-#     fi && \
-#     wget "${MINICONDA_URL}" -O miniconda.sh -q && \
-#     echo "${SHA256SUM} miniconda.sh" > shasum && \
-#     if [ "${CONDA_VERSION}" != "latest" ]; then sha256sum --check --status shasum; fi && \
-#     mkdir -p /home/coder && \
-#     sh miniconda.sh -b -p /home/coder/conda && \
-#     rm miniconda.sh shasum && \
-#     echo ". /home/coder/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-#     echo "conda activate base" >> ~/.bashrc && \
-#     find /home/coder/conda/ -follow -type f -name '*.a' -delete && \
-#     find /home/coder/conda/ -follow -type f -name '*.js.map' -delete && \
-#     /home/coder/conda/bin/conda clean -afy
-
-# USER root
-
-# RUN ln -s /home/coder/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
 USER 1000
 ENV USER=coder
